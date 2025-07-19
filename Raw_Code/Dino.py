@@ -64,7 +64,7 @@ dino_df['Height'] = heights
 dino_df['Weight'] = weights
 
 # Save to Excel
-output_folder = r'Location needs to be mention'
+output_folder = r'Location needs to be modified'
 os.makedirs(output_folder, exist_ok=True)
 file_name = os.path.join(output_folder, 'dino_data.xlsx')
 dino_df.to_excel(file_name, index=False)
