@@ -1,0 +1,72 @@
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+import numpy as np
+import os
+import re
+
+# Target Wikipedia page
+url = 'https://en.wikipedia.org/wiki/List_of_dinosaur_genera'
+html = requests.get(url)
+soup = BeautifulSoup(html.text, 'html.parser')
+
+# Get all links
+urls = soup.find_all('a', href=True)
+links_and_names = [(url['href'], url.text) for url in urls]
+
+# Filter for Wikipedia article links and limit to 2317
+dino_data_clean = [link for link in links_and_names if link[0].startswith("/wiki/")][:2317]
+
+# Create initial DataFrame
+dino_df = pd.DataFrame(dino_data_clean, columns=['url', 'dinosaur'])
+dino_df['dinosaur'] = dino_df['dinosaur'].replace('', np.nan)
+dino_df = dino_df.dropna(subset=['dinosaur'])
+
+# Convert relative URLs to full URLs
+dino_data_dict = dino_df.set_index('url')['dinosaur'].to_dict()
+dino_data = [('https://en.wikipedia.org' + url, name) for url, name in dino_data_dict.items()]
+dino_data = dino_data[33:]  # Skip first 33 entries
+
+# Get only URLs
+dino_urls = [url for url, _ in dino_data]
+
+# Scrape summaries from each dinosaur page
+dino_info = []
+for i in range(min(200, len(dino_urls))):  # Prevent index out of range
+    try:
+        html = requests.get(dino_urls[i])
+        soup = BeautifulSoup(html.text, 'html.parser')
+        paragraphs = soup.select('p')
+        clean_texts = [p.text.strip() for p in paragraphs][:4]
+        summary = ' '.join(clean_texts)
+    except:
+        summary = "-"
+    dino_info.append(summary)
+
+# Merge base info + summary into one DataFrame
+dino_df = pd.DataFrame(dino_data[:len(dino_info)], columns=['URL', 'Dinosaur'])
+dino_df['Info'] = dino_info
+
+# 🔍 Extract height info
+heights = []
+for text in dino_info:
+    match = re.findall(r'\d+\smeters?', str(text))
+    heights.append(match[0] if match else '-')
+
+# 🔍 Extract weight info
+weights = []
+for text in dino_info:
+    match = re.findall(r'\d+\s(?:tonnes|kilograms)', str(text))
+    weights.append(match[0] if match else '-')
+
+# Add to DataFrame
+dino_df['Height'] = heights
+dino_df['Weight'] = weights
+
+# Save to Excel
+output_folder = r'G:/Yuvanraja/Dino_Webscrapping/Output'
+os.makedirs(output_folder, exist_ok=True)
+file_name = os.path.join(output_folder, 'dino_data.xlsx')
+dino_df.to_excel(file_name, index=False)
+
+print("✅ Dino data exported to Excel successfully!")
